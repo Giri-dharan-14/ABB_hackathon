@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS AI</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>NEXUS AI</h1>
+        <p class="sub">Bringing control to your command</p>
+
+        <div class="card">
+            <h2>🎯 Session Information</h2>
+            <div class="session-info-row">
+                <label>Operator Name:</label>
+                <input type="text" id="operatorName" placeholder="Enter your name">
+                <button id="startSessionBtn">Start Session</button>
+            </div>
+            <p id="sessionStatus" class="muted">Session not started - Enter your name and click "Start Session"</p>
+        </div>
+
+        <div class="card">
+            <h2>⚙️ Select Project Type</h2>
+            <div class="project-select">
+                <label>Choose Your Project Type:</label>
+                <select id="projectType">
+                    <option value="greenfield">🏗️ Greenfield Project (User-defined Variables)</option>
+                    <option value="brownfield">📊 Brownfield Project (Excel Variables)</option>
+                </select>
+            </div>
+            <p class="muted">💡 Tip: Greenfield for new projects, Brownfield for existing systems with documentation.</p>
+        </div>
+
+        <div id="brownfieldSection" class="card hidden">
+            <h2>📊 Upload Excel File (Brownfield Project)</h2>
+            <p>Upload existing project documentation with variable definitions. Excel file should contain columns: Tank, IO_Type, Tag, Description.</p>
+            <input type="file" id="uploadExcel" accept=".xlsx,.xls">
+            <div class="btn-row">
+                <button id="uploadBtn">📤 Upload Excel</button>
+                <button id="deleteFileBtn">🗑️ Delete File</button>
+            </div>
+        </div>
+
+        <div id="greenfieldSection" class="card">
+            <h2>🏗️ Add New Variable (Greenfield Project)</h2>
+            <p>Define variables for your new project from scratch.</p>
+            <div class="grid-4">
+                <input id="tank" placeholder="Tank Name">
+                <select id="ioType">
+                    <option>Digital Input</option>
+                    <option>Digital Output</option>
+                    <option>Analog Input</option>
+                    <option>Analog Output</option>
+                    <option>Internal</option>
+                </select>
+                <input id="tag" placeholder="Tag Name">
+                <input id="description" placeholder="Description">
+            </div>
+            <div class="btn-row">
+                <button id="addVariableBtn">➕ Add Variable</button>
+            </div>
+            <p class="muted">💡 Quick Start: Add variables manually for your project.</p>
+        </div>
+
+        <div id="variablesSection" class="card">
+            <h2>📋 Project Variables</h2>
+            <button id="clearAllBtn">🗑️ Clear All</button>
+            <span>Variables: <span id="variablesCount">0</span></span>
+            <table class="ctx-table">
+                <thead>
+                    <tr>
+                        <th>Tank</th>
+                        <th>IO_Type</th>
+                        <th>Tag</th>
+                        <th>Description</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="variablesTableBody"></tbody>
+            </table>
+            <p class="muted">Add variables above to see them listed here. These will be used for code generation.</p>
+        </div>
+
+        <div class="card">
+            <h2>💬 Instruction Chat</h2>
+            <p>Describe your control logic requirements. The AI will ask clarifying questions to understand your needs.</p>
+            <div id="chatContainer" class="chat-container"></div>
+            <div class="chat-input-row">
+                <textarea id="chatInput" placeholder="Describe your requirements..."></textarea>
+                <button id="sendBtn">📤 Send</button>
+            </div>
+            <button id="generateSTBtn">⚡ Generate ST Code</button>
+            <p id="generateStatus" class="muted">Ready to generate! The AI has gathered enough information about your requirements.</p>
+        </div>
+
+        <div class="card">
+            <h3>🔧 Variable Declarations</h3>
+            <pre id="varDeclarations"></pre>
+            <button id="editVars">✏️ Edit</button>
+            <button id="copyVars">📋 Copy</button>
+        </div>
+
+        <div class="card">
+            <h3>⚡ Structured Text Logic</h3>
+            <pre id="stLogic"></pre>
+            <button id="editLogic">✏️ Edit</button>
+            <button id="copyLogic">📋 Copy</button>
+        </div>
+
+        <div class="card">
+            <h2>📊 Retrieved Context</h2>
+            <p>Generated code context and variable usage will be displayed here after code generation.</p>
+            <table class="ctx-table">
+                <thead>
+                    <tr>
+                        <th>Tank</th>
+                        <th>IO Type</th>
+                        <th>Tag Name</th>
+                        <th>Description</th>
+                        <th>Data Type</th>
+                    </tr>
+                </thead>
+                <tbody id="contextTableBody"></tbody>
+            </table>
+            <button id="downloadCtxBtn">📥 Download Context as Excel</button>
+        </div>
+
+        <div class="report-section">
+            <h2>📄 Session Report</h2>
+            <p>Generate a comprehensive PDF document containing all session details including chat history, generated code, and retrieved context.</p>
+            <button id="generateReportBtn">📑 Generate Session Report</button>
+            <button id="endSessionBtn">🔚 End Session</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const operatorInput = document.getElementById('operatorName');
+            const startSessionBtn = document.getElementById('startSessionBtn');
+            const sessionStatus = document.getElementById('sessionStatus');
+            const projectTypeSelect = document.getElementById('projectType');
+            const brownfieldSection = document.getElementById('brownfieldSection');
+            const greenfieldSection = document.getElementById('greenfieldSection');
+            const uploadExcelInput = document.getElementById('uploadExcel');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const deleteFileBtn = document.getElementById('deleteFileBtn');
+            const tankInput = document.getElementById('tank');
+            const ioTypeSelect = document.getElementById('ioType');
+            const tagInput = document.getElementById('tag');
+            const descriptionInput = document.getElementById('description');
+            const addVariableBtn = document.getElementById('addVariableBtn');
+            const clearAllBtn = document.getElementById('clearAllBtn');
+            const variablesTableBody = document.getElementById('variablesTableBody');
+            const variablesCount = document.getElementById('variablesCount');
+            const variablesSection = document.getElementById('variablesSection');
+            const chatContainer = document.getElementById('chatContainer');
+            const chatInput = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const generateSTBtn = document.getElementById('generateSTBtn');
+            const generateStatus = document.getElementById('generateStatus');
+            const varDeclarationsPre = document.getElementById('varDeclarations');
+            const editVarsBtn = document.getElementById('editVars');
+            const copyVarsBtn = document.getElementById('copyVars');
+            const stLogicPre = document.getElementById('stLogic');
+            const editLogicBtn = document.getElementById('editLogic');
+            const copyLogicBtn = document.getElementById('copyLogic');
+            const contextTableBody = document.getElementById('contextTableBody');
+            const downloadCtxBtn = document.getElementById('downloadCtxBtn');
+            const generateReportBtn = document.getElementById('generateReportBtn');
+            const endSessionBtn = document.getElementById('endSessionBtn');
+
+            // Get project type from URL query parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            let projectType = urlParams.get('type') || 'greenfield';
+            projectTypeSelect.value = projectType === 'greenfield' ? 'greenfield' : 'brownfield';
+
+            let sessionStarted = false;
+            let operatorName = '';
+            let sessionStartTime = null;
+            let conversation = [];
+            let generatedCode = { vars: '', logic: '' };
+            let retrievedContext = [];
+            let clarificationSummary = '';
+            let variables = [];
+
+            function updateSessionStatus() {
+                if (sessionStarted) {
+                    sessionStatus.textContent = `Session started by ${operatorName} at ${sessionStartTime.toLocaleString()}`;
+                } else {
+                    sessionStatus.textContent = 'Session not started - Enter your name and click "Start Session"';
+                }
+            }
+
+            function toggleSections() {
+                if (projectType === 'brownfield') {
+                    brownfieldSection.classList.remove('hidden');
+                    greenfieldSection.classList.add('hidden');
+                    variablesSection.classList.add('hidden');
+                } else {
+                    brownfieldSection.classList.add('hidden');
+                    greenfieldSection.classList.remove('hidden');
+                    variablesSection.classList.remove('hidden');
+                }
+            }
+
+            function addChatMessage(role, content) {
+                const bubble = document.createElement('div');
+                bubble.classList.add('chat-bubble', role);
+                bubble.textContent = content;
+                chatContainer.appendChild(bubble);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+
+            function updateVariablesTable() {
+                variablesTableBody.innerHTML = '';
+                variables.forEach(varItem => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${varItem.tank || ''}</td>
+                        <td>${varItem.io_type}</td>
+                        <td>${varItem.tag}</td>
+                        <td>${varItem.description}</td>
+                        <td>
+                            <button class="small editVarBtn" data-tag="${varItem.tag}">✏️ Edit</button>
+                            <button class="small danger deleteVarBtn" data-tag="${varItem.tag}">Delete</button>
+                        </td>
+                    `;
+                    variablesTableBody.appendChild(tr);
+                });
+                variablesCount.textContent = variables.length;
+            }
+
+            function updateContextTable() {
+                contextTableBody.innerHTML = '';
+                retrievedContext.forEach(varItem => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${varItem.tank || ''}</td>
+                        <td>${varItem.io_type}</td>
+                        <td><code>${varItem.tag}</code></td>
+                        <td>${varItem.description}</td>
+                        <td>${varItem.type}</td>
+                    `;
+                    contextTableBody.appendChild(tr);
+                });
+            }
+
+            function updateGenerateStatus(ready) {
+                if (ready) {
+                    generateStatus.textContent = '✅ Ready to generate! The AI has gathered enough information about your requirements.';
+                    generateStatus.classList.remove('muted');
+                    generateSTBtn.disabled = false;
+                } else {
+                    generateStatus.textContent = 'Gather more information through chat to enable code generation.';
+                    generateStatus.classList.add('muted');
+                    generateSTBtn.disabled = true;
+                }
+            }
+
+            startSessionBtn.addEventListener('click', () => {
+                operatorName = operatorInput.value.trim();
+                if (!operatorName) return alert('Please enter your name');
+                sessionStarted = true;
+                sessionStartTime = new Date();
+                updateSessionStatus();
+                operatorInput.disabled = true;
+                startSessionBtn.disabled = true;
+            });
+
+            projectTypeSelect.addEventListener('change', e => {
+                projectType = e.target.value;
+                // Update URL with new project type and reload
+                window.location.search = `?type=${projectType}`;
+            });
+
+            uploadBtn.addEventListener('click', () => {
+                const file = uploadExcelInput.files[0];
+                if (!file) return alert('Select a file');
+                const formData = new FormData();
+                formData.append('file', file);
+                fetch('/api/upload_excel', { method: 'POST', body: formData })
+                    .then(res => res.json())
+                    .then(data => alert(`Uploaded, parsed ${data.count} variables`))
+                    .catch(err => console.error(err));
+            });
+
+            deleteFileBtn.addEventListener('click', () => {
+                fetch('/api/delete_excel', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(() => {
+                        alert('Excel data cleared');
+                        uploadExcelInput.value = '';
+                    })
+                    .catch(err => console.error(err));
+            });
+
+            addVariableBtn.addEventListener('click', () => {
+                const data = {
+                    tank: tankInput.value.trim(),
+                    io: ioTypeSelect.value,
+                    tag: tagInput.value.trim(),
+                    description: descriptionInput.value.trim()
+                };
+                if (!data.tag || !data.io) return alert('Tag and IO Type required');
+                fetch('/api/add_variable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                }).then(res => res.json())
+                  .then(res => {
+                      variables.push({
+                          tank: data.tank,
+                          io_type: data.io,
+                          tag: data.tag,
+                          description: data.description
+                      });
+                      updateVariablesTable();
+                      tankInput.value = '';
+                      tagInput.value = '';
+                      descriptionInput.value = '';
+                  }).catch(err => console.error(err));
+            });
+
+            clearAllBtn.addEventListener('click', () => {
+                fetch('/api/clear_variables', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(() => {
+                        variables = [];
+                        updateVariablesTable();
+                    });
+            });
+
+            variablesTableBody.addEventListener('click', e => {
+                if (e.target.classList.contains('deleteVarBtn')) {
+                    const tag = e.target.dataset.tag;
+                    fetch('/api/delete_variable', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tag })
+                    }).then(res => res.json())
+                      .then(() => {
+                          variables = variables.filter(v => v.tag !== tag);
+                          updateVariablesTable();
+                      });
+                } else if (e.target.classList.contains('editVarBtn')) {
+                    const tag = e.target.dataset.tag;
+                    const varItem = variables.find(v => v.tag === tag);
+                    if (varItem) {
+                        tankInput.value = varItem.tank;
+                        ioTypeSelect.value = varItem.io_type;
+                        tagInput.value = varItem.tag;
+                        descriptionInput.value = varItem.description;
+                        variables = variables.filter(v => v.tag !== tag);
+                        updateVariablesTable();
+                    }
+                }
+            });
+
+            sendBtn.addEventListener('click', () => {
+                const message = chatInput.value.trim();
+                if (!message) return;
+                addChatMessage('user', message);
+                conversation.push({ role: 'user', content: message, timestamp: new Date().toLocaleString() });
+                chatInput.value = '';
+                fetch('/api/chat_step', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversation })
+                }).then(res => res.json())
+                  .then(data => {
+                      addChatMessage('bot', data.reply);
+                      conversation.push({ role: 'assistant', content: data.reply, timestamp: new Date().toLocaleString() });
+                      updateGenerateStatus(data.ready);
+                      if (data.ready) {
+                          clarificationSummary = data.reply; // Simple, or parse if needed
+                      }
+                  });
+            });
+
+            generateSTBtn.addEventListener('click', () => {
+                if (!sessionStarted) return alert('Start session first');
+                const source = projectType === 'brownfield' ? 'excel' : 'user';
+                // Show "Generating..." while fetching
+                varDeclarationsPre.textContent = 'Generating...';
+                stLogicPre.textContent = 'Generating...';
+                fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversation, genType: 'ST', source })
+                }).then(res => res.json())
+                  .then(data => {
+                      if (data.error) return alert(data.error);
+                      varDeclarationsPre.textContent = data.vars;
+                      stLogicPre.textContent = data.logic;
+                      retrievedContext = data.context;
+                      updateContextTable();
+                      generatedCode = { vars: data.vars, logic: data.logic };
+                  });
+            });
+
+            copyVarsBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(varDeclarationsPre.textContent);
+            });
+
+            copyLogicBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(stLogicPre.textContent);
+            });
+
+            editVarsBtn.addEventListener('click', () => {
+                varDeclarationsPre.contentEditable = true;
+                varDeclarationsPre.focus();
+            });
+
+            editLogicBtn.addEventListener('click', () => {
+                stLogicPre.contentEditable = true;
+                stLogicPre.focus();
+            });
+
+            downloadCtxBtn.addEventListener('click', () => {
+                window.location.href = '/api/download_context';
+            });
+
+            generateReportBtn.addEventListener('click', () => {
+                const reportData = {
+                    operator_name: operatorName,
+                    session_start_time: sessionStartTime ? sessionStartTime.toISOString() : null,
+                    chat_history: conversation,
+                    generated_vars: generatedCode.vars,
+                    generated_logic: generatedCode.logic,
+                    retrieved_context: retrievedContext,
+                    mode: projectType,
+                    clarification_summary: clarificationSummary
+                };
+                fetch('/api/generate_report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(reportData)
+                }).then(res => {
+                    if (!res.ok) throw new Error('Failed to generate report');
+                    return res.blob();
+                }).then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'session_report.pdf';
+                    a.click();
+                }).catch(err => console.error(err));
+            });
+
+            endSessionBtn.addEventListener('click', () => {
+                if (confirm('End session?')) {
+                    sessionStarted = false;
+                    operatorName = '';
+                    sessionStartTime = null;
+                    projectType = 'greenfield';
+                    conversation = [];
+                    generatedCode = { vars: '', logic: '' };
+                    retrievedContext = [];
+                    clarificationSummary = '';
+                    variables = [];
+                    operatorInput.value = '';
+                    operatorInput.disabled = false;
+                    startSessionBtn.disabled = false;
+                    updateSessionStatus();
+                    toggleSections();
+                    chatContainer.innerHTML = '';
+                    varDeclarationsPre.textContent = '';
+                    stLogicPre.textContent = '';
+                    updateVariablesTable();
+                    updateContextTable();
+                    updateGenerateStatus(false);
+                    window.location.search = ''; // Reset URL on end session
+                }
+            });
+
+            updateSessionStatus();
+            toggleSections();
+            updateGenerateStatus(false);
+            generateSTBtn.disabled = true;
+        });
+    </script>
+</body>
+</html>
